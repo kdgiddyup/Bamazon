@@ -32,6 +32,8 @@ Then create a Node application called bamazonCustomer.js. Running this applicati
 */
 var inquirer = require("inquirer");
 var mysql = require("mysql");
+var table = require("console.table");
+
 var connection = mysql.createConnection({
     host: "localhost",
     port: 3306,
@@ -45,15 +47,13 @@ function showAllProducts(){
     });
 
     
-    var sql = "SELECT item_id,product_name,price FROM products";
+    var sql = "SELECT item_id,product_name,price FROM products ORDER BY product_name";
     var sql = mysql.format(sql);
     connection.query(sql, function(err, res) {
         if (err) 
             console.log(err)
         else {
-            for (var i=0;i<res.length;i++){
-            console.log('\nProduct ID: '+res[i].item_id+' | Product name: '+res[i].product_name+' | Price: $'+res[i].price+'\n');
-            }
+            console.table("\nCurrent products by name",res);
             connection.end();
         }
     });
