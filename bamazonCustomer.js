@@ -1,34 +1,13 @@
 /*
 Challenge #1: Customer View (Minimum Requirement)
 
-products table schema:
+SCHEMA: products:
 item_id INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
 product_name VARCHAR(100),
 department_name VARCHAR(33)
 price DEC(10,2),
 stock_quantity INT NOT NULL
 
-product,dept,price,stock
-sunglasses,clothing accessories,10,50
-boys' Hawaiian shirt,children's clothing,30,30
-girls' beach coverup,children's clothing,25,30
-boys' flip-flops,children's footwear,15,50
-girls' flip-flops,children's footwear,15,50
-men's flip-flops,men's footwear,25,50
-women's flip-flops,women's footwear,30,50
-men's Hawaiian shirt,men's clothing,40,30
-women's beach coverup,women's clothing,40,30
-beach towels,beach accessories,50,20
-sunscreen,beach accessories,10,100
-beach umbrella,beach accessories,230,20
-beach tote,beach accessories,30,50
-beach paddle game,beach accessories,20,50
-girls' bathing suit,children's clothing,40,50
-boys' swim trunks,children's clothing,30,50
-women's bathing suit,women's clothing,45,50
-men's swim trunks,men's clothing,35,50
-
-Then create a Node application called bamazonCustomer.js. Running this application will first display all of the items available for sale. Include the ids, names, and prices of products for sale.
 */
 var inquirer = require("inquirer");
 var mysql = require("mysql");
@@ -41,37 +20,155 @@ var connection = mysql.createConnection({
     password: "SqlDatabaseRoot",
     database: "Bamazon"
 })
-function showAllProducts(){
-    connection.connect(function(err){
-        if (err) throw err;
-    });
 
-    
-    var sql = "SELECT item_id,product_name,price FROM products ORDER BY product_name";
-    var sql = mysql.format(sql);
-    connection.query(sql, function(err, res) {
-        if (err) 
-            console.log(err)
-        else {
-            console.table("\nCurrent products by name",res);
-            connection.end();
+
+customerInventoryPrompt();
+
+
+function customerInventoryPrompt(){
+    console.log('\nThanks for shopping at Bamazon!\n');
+    inquirer.prompt([
+        {
+            message: 'Would you like to see the current inventory?',
+            name: 'yes',
+            type: 'confirm',
+            default: true
         }
+    ]).then(function(seeInventory){
+        if(seeInventory.yes)
+            showAllProducts()
+        else
+            customerOrder();
+    })
+} // end customerOrder function
+
+function customerOrder(countFn){
+    inquirer.prompt([
+        {
+        message: 'Enter the product ID: ',
+        type: 'input',
+        name: 'ID',
+        validate: function(value) {
+            if (isNaN(value) === false) {
+                return true;
+            }
+            return false;
+        }
+        }, {
+        message: 'Enter quanity: ',
+        type: 'input',
+        name: 'quantity',
+        validate: function(value) {
+            if (isNaN(value) === false) {
+                return true;
+            }
+            return false;
+        } 
+    }
+    ]).then(function(order,countFn){
+        if (order.quantity == '1')
+            var pluralizer = ' unit '
+        else    
+            var pluralizer = ' units ';
+        
+        var sql = "SELECT * FROM products WHERE ?? = ?";
+        var inserts = ['item_id',order.ID];
+        sql = mysql.format(sql,inserts);
+        connection.query(sql, function(err, res) {
+            if (err) 
+                console.log(err)
+            else {
+            console.log('You\'ve placed an order for '+order.quantity+pluralizer+'of '+res[0].product_name+'.');
+
+            // check inventory
+            productCount(res[0].item_id, function(count){
+                if (count > order.quantity) {
+                    // adequate stock exists; ship it, then update stock
+                    console.log('Great news! We have that in stock! They will be shipped shortly!\nYour total is $'+res[0].price*order.quantity+'.');
+                    updateInventory(res[0].item_id,order.quantity);
+                    // to do: prompt to order again or exit
+                }
+                else if (count == 0) {
+                    // zero in inventory; log appropriate message and return user to inventory prompt
+                    console.log('Sorry, we\'re out of stock.');
+                    customerInventoryPrompt();
+                }
+                else if (count < order.quantity) {
+                    // some in stock but not enough; message appropriately and send back to order input
+                    console.log('We only have '+count+ ' left in stock. Please adjust your order.');
+                    customerOrder();
+                };
+            }); // end productCount callback 
+
+
+            /*
+If this activity took you between 8-10 hours, then you've put enough time into this assignment. Feel free to stop here -- unless you want to take on the next challenge.
+
+SCHEMA: products:
+item_id INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
+product_name VARCHAR(100),
+department_name VARCHAR(33)
+price DEC(10,2),
+stock_quantity INT NOT NULL
+*/
+            }
+        });
+        
+    })
+} // end customerInput function
+   
+function productCount(id,callback){
+// standalone function (might be needed many places) is passed product id and returns current inventory 
+
+    var sql = "SELECT stock_quantity FROM products WHERE ?? = ?";
+    var inserts = ['item_id',id];
+    sql = mysql.format(sql,inserts);
+    connection.query(sql, function(err,res){
+        if (err) throw(err);
+        callback(res[0].stock_quantity);
+        });
+
+} // end productCount function
+
+function updateInventory(id,amount){
+// standalone function is passed product id and successful order amount to update database 
+    var sql = "UPDATE products SET stock_quantity = stock_quantity - ? WHERE item_id = ?";
+    var inserts = [amount,id];
+    sql = mysql.format(sql,inserts);
+    connection.query(sql, function(err,res){
+        if (err) throw(err);
     });
+    //showAllProducts();
+    
+            
+} // end updateInventory function
+
+
+function showAllProducts(){
+
+    if (!connection) {
+        connection.connect(function(err){
+            if (err) throw err;
+        });
+    }
+    else {
+        var sql = "SELECT item_id,product_name,price FROM products ORDER BY product_name";
+        sql = mysql.format(sql);
+        connection.query(sql, function(err, res) {
+            if (err) 
+                console.log(err)
+            else {
+                console.table("\nCurrent products by name",res);
+                customerOrder();
+            };
+        });
+    };
 } // end function showAllProducts
-showAllProducts();
+
+
 
 
 /*
-
-The app should then prompt users with two messages.
-The first should ask them the ID of the product they would like to buy.
-The second message should ask how many units of the product they would like to buy.
-Once the customer has placed the order, your application should check if your store has enough of the product to meet the customer's request.
-If not, the app should log a phrase like Insufficient quantity!, and then prevent the order from going through.
-However, if your store does have enough of the product, you should fulfill the customer's order.
-This means updating the SQL database to reflect the remaining quantity.
-Once the update goes through, show the customer the total cost of their purchase.
-If this activity took you between 8-10 hours, then you've put enough time into this assignment. Feel free to stop here -- unless you want to take on the next challenge.
 Challenge #2: Manager View (Next Level)
 
 Create a new Node application called bamazonManager.js. Running this application will:
