@@ -29,7 +29,7 @@ function customerInventoryPrompt(){
     console.log('\nThanks for shopping at Bamazon!\n');
     inquirer.prompt([
         {
-            message: 'Would you like to see the current inventory?',
+            message: 'Would you like to see the current inventory before placing an order?',
             name: 'yes',
             type: 'confirm',
             default: true
@@ -42,7 +42,7 @@ function customerInventoryPrompt(){
     })
 } // end customerOrder function
 
-function customerOrder(countFn){
+function customerOrder(){
     inquirer.prompt([
         {
         message: 'Enter the product ID: ',
@@ -65,12 +65,7 @@ function customerOrder(countFn){
             return false;
         } 
     }
-    ]).then(function(order,countFn){
-        if (order.quantity == '1')
-            var pluralizer = ' unit '
-        else    
-            var pluralizer = ' units ';
-        
+    ]).then(function(order){
         var sql = "SELECT * FROM products WHERE ?? = ?";
         var inserts = ['item_id',order.ID];
         sql = mysql.format(sql,inserts);
@@ -78,20 +73,20 @@ function customerOrder(countFn){
             if (err) 
                 console.log(err)
             else {
-            console.log('You\'ve placed an order for '+order.quantity+pluralizer+'of '+res[0].product_name+'.');
+            console.log('Order: '+res[0].product_name+'\nQuanity: '+order.quantity);
 
             // check inventory
             productCount(res[0].item_id, function(count){
-                if (count > order.quantity) {
+                if (count >= order.quantity) {
                     // adequate stock exists; ship it, then update stock
                     console.log('Great news! We have that in stock! They will be shipped shortly!\nYour total is $'+res[0].price*order.quantity+'.');
                     updateInventory(res[0].item_id,order.quantity);
-                    // to do: prompt to order again or exit
+                    routeCustomer();
                 }
                 else if (count == 0) {
                     // zero in inventory; log appropriate message and return user to inventory prompt
                     console.log('Sorry, we\'re out of stock.');
-                    customerInventoryPrompt();
+                    routeCustomer();
                 }
                 else if (count < order.quantity) {
                     // some in stock but not enough; message appropriately and send back to order input
@@ -99,18 +94,6 @@ function customerOrder(countFn){
                     customerOrder();
                 };
             }); // end productCount callback 
-
-
-            /*
-If this activity took you between 8-10 hours, then you've put enough time into this assignment. Feel free to stop here -- unless you want to take on the next challenge.
-
-SCHEMA: products:
-item_id INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
-product_name VARCHAR(100),
-department_name VARCHAR(33)
-price DEC(10,2),
-stock_quantity INT NOT NULL
-*/
             }
         });
         
@@ -137,10 +120,7 @@ function updateInventory(id,amount){
     sql = mysql.format(sql,inserts);
     connection.query(sql, function(err,res){
         if (err) throw(err);
-    });
-    //showAllProducts();
-    
-            
+    });    
 } // end updateInventory function
 
 
@@ -165,7 +145,24 @@ function showAllProducts(){
     };
 } // end function showAllProducts
 
-
+function routeCustomer(){
+    inquirer.prompt([
+        {
+        message: '\nWould you like to exit or order again?',
+        type: 'list',
+        name: 'route',
+        choices: ['Exit','Order again']
+        }, 
+    ]).then(function(user){
+        if (user.route == 'Exit') {
+            console.log("\nThanks for visiting! Have a great day!\n");
+            connection.end();
+        }
+        else {
+            customerInventoryPrompt();
+        }
+    });
+}
 
 
 /*
